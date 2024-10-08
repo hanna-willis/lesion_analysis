@@ -10,20 +10,20 @@
 
 # SET UP VARIABLES
 # ---------------------
-all_subj='PAT_R019 PAT_R020 PAT_R022 PAT_R023 PAT_R024 PAT_R006 PAT_R007 PAT_R009 PAT_R011 PAT_R013 PAT_R014 PAT_R017 PAT_R018 PAT_003 PAT_004 PAT_012 PAT_015 PAT_017 PAT_019 PAT_020 PAT_021 PAT_022 PAT_S202 PAT_S203 PAT_S204 PAT_S205 PAT_S206 PAT_S208 PAT_S209 PAT_S210 PAT_S211 PAT_S214 PAT_S215 PAT_S216 PAT_S217 PAT_S218 PAT_S220 PAT_S401 PAT_S219'
+#all_subj='PAT_R019 PAT_R020 PAT_R022 PAT_R023 PAT_R024 PAT_R006 PAT_R007 PAT_R009 PAT_R011 PAT_R013 PAT_R014 PAT_R017 PAT_R018 PAT_003 PAT_004 PAT_012 PAT_015 PAT_017 PAT_019 PAT_020 PAT_021 PAT_022 PAT_S202 PAT_S203 PAT_S204 PAT_S205 PAT_S206 PAT_S208 PAT_S209 PAT_S210 PAT_S211 PAT_S214 PAT_S215 PAT_S216 PAT_S217 PAT_S218 PAT_S220 PAT_S401 PAT_S219'
+all_subj='PAT_S219'
 all_areas='V1 V4 V5'
 all_thresholds='10 30 50'
-
-# SET UP PATHS
-# ---------------------
-SCRIPT_LOC=/Users/hwillis_admin/Desktop/OneDrive*Nexus365/Hemianopia_Rehab_Data/Patients/Scripts/rehab/analysis/mri_analysis/lesion/
-DATA_LOC=/Volumes/Hanna_Rehab_Data/Lesion_paper
 
 # MAKE DATAFILE
 # ---------------------
 cd $DATA_LOC
 echo 'Subj, Hemisphere, Visual_Area, Mask_Threshold, Lesion_Size, Visual_Area_Size, Overlap_Size' > visual_area_size_cal.csv
 
+# SET UP PATHS
+# ---------------------
+SCRIPT_LOC=/Users/hwillis_admin/Desktop/OneDrive*Nexus365/Hemianopia_Rehab_Data/Patients/Scripts/rehab/analysis/mri_analysis/lesion/
+DATA_LOC=/Volumes/Hanna_Rehab_Data/Lesion_paper
 
 # ------------------------ THRESHOLD MASKS OF INTEREST ------------------------
 
@@ -60,7 +60,7 @@ echo 'Subj, Hemisphere, Visual_Area, Mask_Threshold, Lesion_Size, Visual_Area_Si
 # Move the masks into structural space
 # ---------------------
 
-for subj in $all_subj
+for subj in PAT_R019 PAT_R020 PAT_R024 PAT_R006 PAT_R007 PAT_R009 PAT_R011 PAT_S219
 do 
 	echo "starting" $subj
 	ANAT=/Volumes/Hanna_Rehab_Data/Lesion_paper/Lesion_masks/anat
@@ -71,8 +71,8 @@ do
 
 # Create the folder if it doesn't exist
 if [ ! -d "$WARP" ]; then
-    mkdir -p "$directory"
-    echo "Directory created: $directory"
+    mkdir -p "$WARP"
+    echo "Directory created: $WARP"
 else
     echo "Directory already exists: $directory"
 fi
@@ -80,7 +80,7 @@ fi
 # Create struct-standard warp files
 # ---------------------
 
-	echo "creating warp files"
+echo "creating warp files"
 flirt -in $ANAT/${subj}.nii.gz -ref $STAND/MNI152_T1_1mm.nii.gz -omat $WARP/struct2mni.mat
 fnirt --ref=$STAND/MNI152_T1_1mm.nii.gz --in=$ANAT/${subj}.nii.gz --aff=$WARP/struct2mni.mat --cout=$WARP/warpxfm_struct2mni.nii.gz
 invwarp -w $WARP/warpxfm_struct2mni.nii.gz -o $WARP/warpxfm_mni2struct.nii.gz -r $ANAT/${subj}.nii.gz
@@ -94,7 +94,7 @@ invwarp -w $WARP/warpxfm_struct2mni.nii.gz -o $WARP/warpxfm_mni2struct.nii.gz -r
       for threshold in $all_thresholds
       do
 
-Move visual masks into structural space 
+#Move visual masks into structural space 
 echo "applying warp files to visual areas"
 applywarp -i $MASK/${visual_area}_${hemisphere}_thr${threshold}.nii.gz -r $ANAT/${subj}.nii.gz -w $WARP/warpxfm_mni2struct.nii.gz -o $WARP/${subj}_${visual_area}_${hemisphere}_thr${threshold}
 fslmaths $WARP/${subj}_${visual_area}_${hemisphere}_thr${threshold} -bin $WARP/${subj}_${visual_area}_${hemisphere}_thr${threshold}
@@ -112,24 +112,76 @@ done
 done
 done
 
+# ------------------------ FLIP REHAB BRAINS ------------------------
+
+for subj in PAT_R019 PAT_R020 PAT_R024 PAT_R006 PAT_R007 PAT_R009 PAT_R011 #PAT_S219
+do 
+	echo "starting" $subj
+	ANAT=/Volumes/Hanna_Rehab_Data/Lesion_paper/Lesion_masks/anat
+	STAND=/Users/hwillis_admin/fsl/data/standard
+	WARP=/Volumes/Hanna_Rehab_Data/Lesion_paper/visual_masks/${subj}
+	MASK=/Volumes/Hanna_Rehab_Data/Lesion_paper/visual_masks/orig_masks
+	LESION=/Volumes/Hanna_Rehab_Data/Lesion_paper/Lesion_masks/lesions
+
+	for hemisphere in L R
+  do 
+    for visual_area in $all_areas
+    do
+      for threshold in $all_thresholds
+      do
+
+  # Flip anat
+	fslswapdim $ANAT/${subj}.nii.gz -x y z $ANAT/${subj}.nii.gz
+
+	# Flip lesion 
+	fslswapdim $LESION/${subj}_lesion.nii.gz -x y z $LESION/${subj}_lesion.nii.gz
+
+  # Flip areas in anat space 
+  fslswapdim $WARP/${subj}_${visual_area}_R_thr${threshold}.nii.gz -x y z $WARP/${subj}_${visual_area}_Lflip_thr${threshold}.nii.gz
+
+  # Flip overlap of lesion with areas 
+	fslswapdim $WARP/${subj}_lesion_in_R_${visual_area}_thr${threshold}.nii.gz -x y z $WARP/${subj}_lesion_in_Lflip_${visual_area}_thr${threshold}.nii.gz
+
+done 
+done 
+done 
+done
+
+for subj in PAT_R020 #PAT_R024 PAT_R006 PAT_R007 PAT_R009 PAT_R011 PAT_R019 PAT_S219 PAT_003
+do 
+	echo "starting" $subj
+	ANAT=/Volumes/Hanna_Rehab_Data/Lesion_paper/Lesion_masks/anat
+	STAND=/Users/hwillis_admin/fsl/data/standard
+	WARP=/Volumes/Hanna_Rehab_Data/Lesion_paper/visual_masks/${subj}
+	MASK=/Volumes/Hanna_Rehab_Data/Lesion_paper/visual_masks/orig_masks
+	LESION=/Volumes/Hanna_Rehab_Data/Lesion_paper/Lesion_masks/lesions
+
+ fsleyes $ANAT/${subj}.nii.gz \
+	$LESION/${subj}_lesion.nii.gz \
+	$WARP/*flip* \
+	$WARP/*flip*
+
+done
+
+
 # ------------------------ VISUALLY INSPECT MASKS IN ANATOMICAL SPACE ------------------------
 # Flip lesions
-# for subj in PAT_003 PAT_004 PAT_012 PAT_020 PAT_022 PAT_S204 PAT_S206 PAT_S208 PAT_S211 PAT_S218
-# do 
-# 	echo "starting" $subj
-# # Loop through each hemisphere, visual area and threshold 
-# WARP=/Volumes/Hanna_Rehab_Data/Lesion_paper/visual_masks/${subj}
-# ANAT=/Volumes/Hanna_Rehab_Data/Lesion_paper/Lesion_masks/anat
-# LESION=/Volumes/Hanna_Rehab_Data/Lesion_paper/Lesion_masks/lesions
+for subj in PAT_S219 #PAT_003 PAT_004 PAT_012 PAT_020 PAT_022 PAT_S204 PAT_S206 PAT_S208 PAT_S211 PAT_S218
+do 
+	echo "starting" $subj
+# Loop through each hemisphere, visual area and threshold 
+WARP=/Volumes/Hanna_Rehab_Data/Lesion_paper/visual_masks/${subj}
+ANAT=/Volumes/Hanna_Rehab_Data/Lesion_paper/Lesion_masks/anat
+LESION=/Volumes/Hanna_Rehab_Data/Lesion_paper/Lesion_masks/lesions
 
-# cp $LESION/${subj}_lesion.nii.gz flip
-# fslswapdim $LESION/${subj}_lesion.nii.gz -x y z $LESION/${subj}_lesion.nii.gz
+cp $LESION/${subj}_lesion.nii.gz flip
+fslswapdim $LESION/${subj}_lesion.nii.gz -x y z $LESION/${subj}_lesion.nii.gz
 
-# done
+done
 
 # Check lesions
 # ---------------------
-for subj in $all_subj
+for subj in PAT_R019 PAT_R020 PAT_R024 PAT_R006 PAT_R007 PAT_R009 PAT_R011
 do 
 	echo "starting" $subj
 	# Loop through each hemisphere, visual area and threshold 
@@ -138,13 +190,16 @@ do
 	LESION=/Volumes/Hanna_Rehab_Data/Lesion_paper/Lesion_masks/lesions
 
 	fsleyes $ANAT/${subj}.nii.gz \
-	$LESION/${subj}_lesion.nii.gz
+	$LESION/${subj}_lesion.nii.gz \
+	$WARP/${subj}_V1_R_thr10 -cm red \
+	$WARP/${subj}_V1_R_thr30 -cm blue \
+	$WARP/${subj}_V1_R_thr50 -cm green 
 done
 
 # Check visual areas 
 # ---------------------
 
-for subj in $all_subj
+for subj in PAT_S219 PAT_R020 PAT_R024 PAT_R006 PAT_R007 PAT_R009 PAT_R011 PAT_R019
 do 
 	echo "starting" $subj
 # Loop through each hemisphere, visual area and threshold 
@@ -156,49 +211,50 @@ do
 	$WARP/${subj}_V1_L_thr10 -cm red \
 	$WARP/${subj}_V1_L_thr30 -cm blue \
 	$WARP/${subj}_V1_L_thr50 -cm green \
-	$WARP/${subj}_V1_R_thr10 -cm red \
-	$WARP/${subj}_V1_R_thr30 -cm blue \
-	$WARP/${subj}_V1_R_thr50 -cm green \
 	$WARP/${subj}_lesion_in_L_V1_thr10 -cm white \
 	$WARP/${subj}_lesion_in_L_V1_thr30 -cm white \
-	$WARP/${subj}_lesion_in_L_V1_thr50 -cm white \
-	$WARP/${subj}_lesion_in_R_V1_thr10 -cm white \
-	$WARP/${subj}_lesion_in_R_V1_thr30 -cm white \
-	$WARP/${subj}_lesion_in_R_V1_thr50 -cm white
+	$WARP/${subj}_lesion_in_L_V1_thr50 -cm white
+	# $WARP/${subj}_V1_L_thr10 -cm red \
+	# $WARP/${subj}_V1_L_thr30 -cm blue \
+	# $WARP/${subj}_V1_L_thr50 -cm green \
+	# $WARP/${subj}_lesion_in_L_V1_thr10 -cm white \
+	# $WARP/${subj}_lesion_in_L_V1_thr30 -cm white \
+	#  $WARP/${subj}_lesion_in_L_V1_thr50 -cm white 
 
 # Check V4
 fsleyes $ANAT/${subj}.nii.gz \
 $WARP/${subj}_V4_L_thr10 -cm red \
 $WARP/${subj}_V4_L_thr30 -cm blue \
 $WARP/${subj}_V4_L_thr50 -cm green \
-$WARP/${subj}_V4_R_thr10 -cm red \
-$WARP/${subj}_V4_R_thr30 -cm blue \
-$WARP/${subj}_V4_R_thr50 -cm green \
 $WARP/${subj}_lesion_in_L_V4_thr10 -cm white \
 $WARP/${subj}_lesion_in_L_V4_thr30 -cm white \
-$WARP/${subj}_lesion_in_L_V4_thr50 -cm white \
-$WARP/${subj}_lesion_in_R_V4_thr10 -cm white \
-$WARP/${subj}_lesion_in_R_V4_thr30 -cm white \
-$WARP/${subj}_lesion_in_R_V4_thr50 -cm white
+$WARP/${subj}_lesion_in_L_V4_thr50 -cm white 
+# $WARP/${subj}_lesion_in_R_V4_thr10 -cm white \
+# $WARP/${subj}_lesion_in_R_V4_thr30 -cm white \
+# $WARP/${subj}_lesion_in_R_V4_thr50 -cm white
+# $WARP/${subj}_V4_R_thr10 -cm red \
+# $WARP/${subj}_V4_R_thr30 -cm blue \
+# $WARP/${subj}_V4_R_thr50 -cm green \
 
 # Check V5
 fsleyes $ANAT/${subj}.nii.gz \
 $WARP/${subj}_V5_L_thr10 -cm red \
 $WARP/${subj}_V5_L_thr30 -cm blue \
 $WARP/${subj}_V5_L_thr50 -cm green \
-$WARP/${subj}_V5_R_thr10 -cm red \
-$WARP/${subj}_V5_R_thr30 -cm blue \
-$WARP/${subj}_V5_R_thr50 -cm green \
 $WARP/${subj}_lesion_in_L_V5_thr10 -cm white \
 $WARP/${subj}_lesion_in_L_V5_thr30 -cm white \
-$WARP/${subj}_lesion_in_L_V5_thr50 -cm white \
-$WARP/${subj}_lesion_in_R_V5_thr10 -cm white \
-$WARP/${subj}_lesion_in_R_V5_thr30 -cm white \
-$WARP/${subj}_lesion_in_R_V5_thr50 -cm white
+$WARP/${subj}_lesion_in_L_V5_thr50 -cm white 
+# $WARP/${subj}_lesion_in_R_V5_thr10 -cm white \
+# $WARP/${subj}_lesion_in_R_V5_thr30 -cm white \
+# $WARP/${subj}_lesion_in_R_V5_thr50 -cm white
+# $WARP/${subj}_V5_R_thr10 -cm red \
+# $WARP/${subj}_V5_R_thr30 -cm blue \
+# $WARP/${subj}_V5_R_thr50 -cm green \
 
 done 
 
 # ------------------------ CALCULATE PROPORTIONS ------------------------
+all_subj='PAT_R019 PAT_R020 PAT_R022 PAT_R023 PAT_R024 PAT_R006 PAT_R007 PAT_R009 PAT_R011 PAT_R013 PAT_R014 PAT_R017 PAT_R018 PAT_003 PAT_004 PAT_012 PAT_015 PAT_017 PAT_019 PAT_020 PAT_021 PAT_022 PAT_S202 PAT_S203 PAT_S204 PAT_S205 PAT_S206 PAT_S208 PAT_S209 PAT_S210 PAT_S211 PAT_S214 PAT_S215 PAT_S216 PAT_S217 PAT_S218 PAT_S220 PAT_S401 PAT_S219'
 
 for subj in $all_subj
 do 
@@ -212,7 +268,7 @@ do
 
 # Loop through each hemisphere, visual area and threshold 
 
-  for hemisphere in L R
+  for hemisphere in L
   do 
     for visual_area in $all_areas
     do
@@ -252,34 +308,47 @@ done
 
 # Move lesions into standard space 
 # --------------------------------
-
-for subj in PAT_015 PAT_017 PAT_020 PAT_S208 PAT_R022 
+#R006 R017 R022 pat017 pat020 pat021 S208
+for subj in PAT_R006 PAT_R017 PAT_R022 PAT_017 PAT_020 PAT_021 PAT_S208 
 do
 	echo 'running' $subj
 WARP=/Volumes/Hanna_Rehab_Data/Lesion_paper/visual_masks/${subj}
+STAND=/Users/hwillis_admin/fsl/data/standard
+LESION=/Volumes/Hanna_Rehab_Data/Lesion_paper/Lesion_masks/lesions
+
 applywarp -i $LESION/${subj}_lesion.nii.gz -r $STAND/MNI152_T1_1mm.nii.gz -w $WARP/warpxfm_struct2mni.nii.gz -o $LESION/${subj}_lesion_std.nii.gz
+
+# Binarise them 
+fslmaths $LESION/${subj}_lesion_std.nii.gz -bin $LESION/${subj}_lesion_std_bin.nii.gz
+
 done 
 
+for subj in PAT_R006 PAT_R017 PAT_R022 PAT_017 PAT_020 PAT_021 PAT_S208 
+do
+fslmaths $LESION/${subj}_lesion_std.nii.gz -bin $LESION/${subj}_lesion_std_bin.nii.gz
+done
 # Check warps
 # # ---------
 
-
 fsleyes $STAND/MNI152_T1_1mm.nii.gz \
-PAT_015_lesion_std.nii.gz \
-PAT_017_lesion_std.nii.gz \
-PAT_020_lesion_std.nii.gz \
-PAT_S208_lesion_std.nii.gz \
-PAT_R022_lesion_std.nii.gz 
+PAT_R006_lesion_std_bin.nii.gz \
+PAT_R017_lesion_std_bin.nii.gz \
+PAT_R022_lesion_std_bin.nii.gz \
+PAT_017_lesion_std_bin.nii.gz \
+PAT_020_lesion_std_bin.nii.gz \
+PAT_021_lesion_std_bin.nii.gz \
+PAT_S208_lesion_std_bin.nii.gz 
 
 # Add lesions together 
 # --------------------
-
 cd $LESION
-fslmaths PAT_015_lesion_std.nii.gz \
--add PAT_017_lesion_std.nii.gz \
--add PAT_020_lesion_std.nii.gz \
--add PAT_S208_lesion_std.nii.gz \
--add PAT_R022_lesion_std.nii.gz \
+fslmaths PAT_R006_lesion_std_bin.nii.gz \
+-add PAT_R017_lesion_std_bin.nii.gz \
+-add PAT_R022_lesion_std_bin.nii.gz \
+-add PAT_017_lesion_std_bin.nii.gz \
+-add PAT_020_lesion_std_bin.nii.gz \
+-add PAT_021_lesion_std_bin.nii.gz \
+-add PAT_S208_lesion_std_bin.nii.gz \
 prob_mask.nii.gz
 
 # View colourmap
@@ -289,9 +358,15 @@ fsleyes $STAND/MNI152_T1_1mm.nii.gz \
 prob_mask.nii.gz
 
 
+# Make one of the thresholding in stnd space 
+for each roi seperate
+done
 
+# Make one of specific threshold 10 MT, 30 V4 and 50 V1 
+done 
 
-
+# 10% MT with lesion symptom mapping fig
+done 
 
 
 
